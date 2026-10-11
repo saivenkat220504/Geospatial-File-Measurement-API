@@ -14,6 +14,7 @@
 
 - [Overview](#overview)
 - [Features](#features)
+- [Project Innovation](#project-innovation)
 - [Project Architecture](#project-architecture)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -49,6 +50,36 @@ The **Geospatial File Measurement API** allows users to upload geospatial files 
 - ✅ **OpenAPI docs** — auto-generated at `/docs`
 - ✅ **Docker support** — full `docker-compose.yml` for containerized deployment
 - ✅ **File size limit** — configurable (default: 500 MB)
+
+
+---
+
+## Project Innovation
+
+1. **Intelligent CRS Selection & Accurate Measurements**
+
+   * Automatically selects a suitable projected coordinate reference system (CRS) based on the dataset's geographic extent.
+   * Calculates polygon areas and line lengths in appropriate units instead of incorrectly measuring geographic coordinates in degrees.
+
+2. **Automated Spatial Quality Assessment**
+
+   * Identifies invalid geometries, empty features, duplicate geometries, and potential polygon overlaps.
+   * Helps detect data-quality issues before spatial data is used for further analysis.
+
+3. **Feature-Level Error Isolation**
+
+   * Processes each feature independently so that an individual geometry failure does not interrupt the entire dataset.
+   * Tracks successful measurements, unsupported geometries, and processing errors with clear status information.
+
+4. **Spatial Intelligence & Aggregated Analytics**
+
+   * Generates dataset-level insights, including total polygon area, total line length, geometry-type distribution, and feature counts.
+   * Provides additional spatial statistics and quality indicators to simplify geospatial data analysis.
+
+5. **Unified Geospatial Processing & GeoJSON Export**
+
+   * Processes KML and ZIP-based Shapefiles through a unified API.
+   * Exports processed features and their attributes as GeoJSON, enabling integration with GIS applications, mapping libraries, and downstream geospatial workflows.
 
 ---
 
