@@ -408,7 +408,7 @@
     #map {
       width: 100%;
       height: 100%;
-      background: #020617;
+      background: #0b1120;
     }
 
     .map-overlay-badge {
@@ -695,18 +695,41 @@
     const valGeomTypes = document.getElementById('valGeomTypes');
     const featuresTableBody = document.getElementById('featuresTableBody');
 
-    // Initialize Leaflet Map
+    // Initialize Leaflet Map with 100% Free OpenStreetMap & Satellite layers (NO API KEY REQUIRED)
     function initMap() {
       map = L.map('map', {
         zoomControl: true,
-        attributionControl: false
+        attributionControl: true
       }).setView([20, 0], 2);
 
-      // Dark theme CartoDB basemap
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // 1. OpenStreetMap Standard (Clean, Global, 100% Free, NO API Key)
+      const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        subdomains: 'abcd'
-      }).addTo(map);
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      });
+
+      // 2. Esri World Imagery (High-Res True Satellite, 100% Free, NO API Key)
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Earthstar Geographics'
+      });
+
+      // 3. OpenTopoMap (Clean Topography, Free)
+      const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: 'Map data: &copy; OpenStreetMap, SRTM | Map style: &copy; OpenTopoMap'
+      });
+
+      // Default to OpenStreetMap
+      osmLayer.addTo(map);
+
+      // Layer Control switcher
+      const baseMaps = {
+        "🗺️ Standard OpenStreetMap": osmLayer,
+        "🛰️ Satellite High-Res": satelliteLayer,
+        "⛰️ Topographic": topoLayer
+      };
+      L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
     }
 
     // Health check
@@ -784,17 +807,34 @@
           body: formData
         });
 
-        const data = await res.json();
+        const uploadData = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.detail || 'Failed to process dataset');
+          throw new Error(uploadData.detail || 'Failed to process dataset');
+        }
+
+        const fileName = uploadData.original_filename || activeFile.name;
+        const fileId = uploadData.file_id || uploadData.id;
+
+        // Fetch detailed measurement summary and insights
+        let summaryData = null;
+        let insightsData = null;
+        try {
+          const [sumRes, insRes] = await Promise.all([
+            fetch(`/api/v1/files/${fileId}/summary`),
+            fetch(`/api/v1/files/${fileId}/insights`)
+          ]);
+          if (sumRes.ok) summaryData = await sumRes.json();
+          if (insRes.ok) insightsData = await insRes.json();
+        } catch (fetchErr) {
+          console.warn('Could not fetch extra summaries', fetchErr);
         }
 
         // Successfully processed
         successBanner.style.display = 'block';
-        successBanner.textContent = `Dataset "${data.filename}" processed successfully (${data.feature_count} features)`;
+        successBanner.textContent = `Dataset "${fileName}" processed successfully (${uploadData.feature_count} features)`;
         
-        displayDatasetResults(data);
+        displayDatasetResults(uploadData, summaryData, insightsData);
       } catch (err) {
         errorBanner.style.display = 'block';
         errorBanner.textContent = err.message;
@@ -810,137 +850,143 @@
       return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    function displayDatasetResults(data) {
+    function displayDatasetResults(uploadData, summaryData, insightsData) {
       // 1. Show cards
       crsCard.style.display = 'block';
       analyticsCard.style.display = 'block';
       featureSection.style.display = 'block';
 
       // 2. CRS Section
-      lblNativeCrs.textContent = data.crs || 'Not Specified (Local)';
-      lblOptimalCrs.textContent = data.measurement_crs || 'Auto UTM Equal-Area';
-      lblAntimeridian.textContent = data.has_antimeridian_crossing ? '⚠ Crosses 180°' : 'Clean';
-      lblAntimeridian.style.color = data.has_antimeridian_crossing ? '#f59e0b' : '#34d399';
-      lblProjMethod.textContent = (data.measurement_crs || '').includes('UTM') ? 'UTM Transverse Mercator' : 'Lambert / Albers Projected';
+      const nativeCrs = uploadData.source_crs || (summaryData ? summaryData.source_crs : null);
+      const optimalCrs = uploadData.selected_measurement_crs || (summaryData ? summaryData.selected_measurement_crs : null);
+      
+      lblNativeCrs.textContent = nativeCrs || 'Local (Unprojected)';
+      lblOptimalCrs.textContent = optimalCrs || 'Auto UTM Equal-Area';
+      
+      const hasAntimeridian = insightsData ? insightsData.crs_audit?.has_antimeridian_crossing : false;
+      lblAntimeridian.textContent = hasAntimeridian ? '⚠ Crosses 180°' : 'Clean';
+      lblAntimeridian.style.color = hasAntimeridian ? '#f59e0b' : '#34d399';
+      lblProjMethod.textContent = (optimalCrs || '').includes('UTM') ? 'UTM Transverse Mercator' : 'Lambert / Albers Equal-Area';
 
       // 3. Analytics
-      valTotalFeatures.textContent = data.feature_count || 0;
-      subValidFeatures.textContent = `${data.valid_features_count || data.feature_count} valid geometries`;
+      valTotalFeatures.textContent = uploadData.feature_count || 0;
+      subValidFeatures.textContent = `${uploadData.feature_count || 0} features calculated`;
       
-      const areaHa = (data.total_area_sq_m || 0) / 10000;
-      const areaKm2 = (data.total_area_sq_m || 0) / 1000000;
-      valTotalArea.textContent = `${formatNumber(areaHa)} ha`;
-      subTotalSqKm.textContent = `${formatNumber(areaKm2)} km² (${formatNumber(data.total_area_sq_m)} m²)`;
-
-      const perimM = data.total_perimeter_m || 0;
-      valTotalPerimeter.textContent = `${formatNumber(perimM)} m`;
-      subTotalKm.textContent = `${formatNumber(perimM / 1000)} km`;
-
-      // 4. Populate table
-      featuresTableBody.innerHTML = '';
-      if (data.features && data.features.length) {
-        const typesCount = {};
-        data.features.slice(0, 50).forEach((feat, idx) => {
-          typesCount[feat.geometry_type] = (typesCount[feat.geometry_type] || 0) + 1;
-          const tr = document.createElement('tr');
-          const ha = feat.area_sq_m ? (feat.area_sq_m / 10000).toFixed(2) : '-';
-          const perim = feat.length_or_perimeter_m ? feat.length_or_perimeter_m.toFixed(2) : '-';
-          const areaM = feat.area_sq_m ? formatNumber(feat.area_sq_m) : '-';
-          
-          let centroid = '-';
-          if (feat.centroid_lat && feat.centroid_lon) {
-            centroid = `${feat.centroid_lat.toFixed(4)}, ${feat.centroid_lon.toFixed(4)}`;
-          }
-
-          tr.innerHTML = `
-            <td>${idx + 1}</td>
-            <td><span style="color:#a855f7;font-weight:600;">${feat.geometry_type || 'Unknown'}</span></td>
-            <td class="mono">${areaM}</td>
-            <td class="mono">${ha}</td>
-            <td class="mono">${perim}</td>
-            <td class="mono" style="font-size:0.75rem;">${centroid}</td>
-          `;
-          featuresTableBody.appendChild(tr);
-        });
-
-        // Set dominant geometry type
-        const dominantType = Object.keys(typesCount).sort((a,b) => typesCount[b] - typesCount[a])[0];
-        valGeomTypes.textContent = dominantType || 'Mixed';
+      let totalAreaSqM = 0;
+      let totalPerimeterM = 0;
+      if (summaryData && summaryData.summary) {
+        totalAreaSqM = summaryData.summary.total_area_sq_m || 0;
+        totalPerimeterM = summaryData.summary.total_perimeter_m || summaryData.summary.total_length_m || 0;
       }
 
-      // 5. Render GeoJSON on Map
-      renderMapGeoJSON(data);
+      const areaHa = totalAreaSqM / 10000;
+      const areaKm2 = totalAreaSqM / 1000000;
+      valTotalArea.textContent = `${formatNumber(areaHa)} ha`;
+      subTotalSqKm.textContent = `${formatNumber(areaKm2)} km² (${formatNumber(totalAreaSqM)} m²)`;
+
+      valTotalPerimeter.textContent = `${formatNumber(totalPerimeterM)} m`;
+      subTotalKm.textContent = `${formatNumber(totalPerimeterM / 1000)} km`;
+
+      // 4. Render GeoJSON and table
+      renderMapAndTable(uploadData.file_id || uploadData.id);
     }
 
-    async function renderMapGeoJSON(data) {
+    async function renderMapAndTable(fileId) {
+      if (!fileId) return;
+
       if (geojsonLayer) {
         map.removeLayer(geojsonLayer);
       }
 
-      // Fetch full GeoJSON features if not bundled in upload response
-      let geojsonFeatures = [];
-      if (data.features && data.features.length && data.features[0].geometry_geojson) {
-        geojsonFeatures = data.features.map(f => ({
-          type: "Feature",
-          properties: f.properties || {},
-          geometry: f.geometry_geojson
-        }));
-      } else if (data.id) {
-        try {
-          const res = await fetch(`/api/v1/files/${data.id}/features?limit=1000`);
-          if (res.ok) {
-            const list = await res.json();
-            geojsonFeatures = list.map(f => ({
-              type: "Feature",
-              properties: f.properties || {},
-              geometry: f.geometry_geojson
-            }));
-          }
-        } catch(e) {
-          console.error("Could not fetch extra features for map", e);
-        }
-      }
+      try {
+        const [geojsonRes, featuresRes] = await Promise.all([
+          fetch(`/api/v1/files/${fileId}/geojson`),
+          fetch(`/api/v1/files/${fileId}/features?limit=100`)
+        ]);
 
-      if (geojsonFeatures.length > 0) {
-        const featureCollection = {
-          type: "FeatureCollection",
-          features: geojsonFeatures.filter(f => f.geometry)
-        };
-
-        geojsonLayer = L.geoJSON(featureCollection, {
-          style: {
-            color: '#6366f1',
-            weight: 2,
-            opacity: 0.85,
-            fillColor: '#8b5cf6',
-            fillOpacity: 0.35
-          },
-          pointToLayer: (feat, latlng) => {
-            return L.circleMarker(latlng, {
-              radius: 6,
-              fillColor: '#06b6d4',
-              color: '#ffffff',
-              weight: 1.5,
-              opacity: 1,
-              fillOpacity: 0.85
-            });
-          },
-          onEachFeature: (feat, layer) => {
-            if (feat.properties) {
-              let popupHtml = '<div style="font-size:0.8rem;color:#0f172a;">';
-              for (const [k, v] of Object.entries(feat.properties).slice(0, 5)) {
-                popupHtml += `<strong>${k}:</strong> ${v}<br/>`;
+        if (geojsonRes.ok) {
+          const geojsonData = await geojsonRes.json();
+          if (geojsonData.features && geojsonData.features.length > 0) {
+            geojsonLayer = L.geoJSON(geojsonData, {
+              style: {
+                color: '#6366f1',
+                weight: 2.5,
+                opacity: 0.9,
+                fillColor: '#8b5cf6',
+                fillOpacity: 0.35
+              },
+              pointToLayer: (feat, latlng) => {
+                return L.circleMarker(latlng, {
+                  radius: 7,
+                  fillColor: '#06b6d4',
+                  color: '#ffffff',
+                  weight: 2,
+                  opacity: 1,
+                  fillOpacity: 0.9
+                });
+              },
+              onEachFeature: (feat, layer) => {
+                let popupHtml = '<div style="font-size:0.82rem;font-family:sans-serif;color:#0f172a;padding:4px;">';
+                popupHtml += `<strong style="color:#4f46e5;">Feature: ${feat.id || 'Spatial Element'}</strong><hr style="margin:4px 0;"/>`;
+                if (feat.properties) {
+                  for (const [k, v] of Object.entries(feat.properties).slice(0, 6)) {
+                    popupHtml += `<strong>${k}:</strong> ${v}<br/>`;
+                  }
+                }
+                popupHtml += '</div>';
+                layer.bindPopup(popupHtml);
               }
-              popupHtml += '</div>';
-              layer.bindPopup(popupHtml);
-            }
-          }
-        }).addTo(map);
+            }).addTo(map);
 
-        map.fitBounds(geojsonLayer.getBounds(), { padding: [40, 40] });
-        mapBadge.innerHTML = `<span>Dataset Rendered:</span> <strong style="color:#6ee7b7;">${geojsonFeatures.length} geometries</strong>`;
-      } else {
-        mapBadge.innerHTML = `<span>Dataset Processed (Attributes Loaded)</span>`;
+            const bounds = geojsonLayer.getBounds();
+            if (bounds.isValid()) {
+              map.fitBounds(bounds, { padding: [40, 40] });
+            }
+            mapBadge.innerHTML = `<span>Dataset Rendered:</span> <strong style="color:#6ee7b7;">${geojsonData.features.length} geometries</strong>`;
+          }
+        }
+
+        // Table population
+        if (featuresRes.ok) {
+          const featureList = await featuresRes.json();
+          featuresTableBody.innerHTML = '';
+          const typesCount = {};
+
+          featureList.forEach((feat, idx) => {
+            typesCount[feat.geometry_type] = (typesCount[feat.geometry_type] || 0) + 1;
+            const tr = document.createElement('tr');
+            const isArea = feat.measurement_type === 'AREA';
+            const areaVal = isArea ? feat.measurement_value : null;
+            const lengthVal = !isArea ? feat.measurement_value : null;
+
+            const ha = areaVal ? (areaVal / 10000).toFixed(2) : '-';
+            const areaM = areaVal ? formatNumber(areaVal) : '-';
+            const perim = lengthVal ? formatNumber(lengthVal) : '-';
+            
+            let centroid = '-';
+            if (feat.geometry_geojson && feat.geometry_geojson.coordinates) {
+              const coords = feat.geometry_geojson.coordinates;
+              if (Array.isArray(coords)) {
+                centroid = 'Mapped';
+              }
+            }
+
+            tr.innerHTML = `
+              <td>${idx + 1}</td>
+              <td><span style="color:#a855f7;font-weight:600;">${feat.geometry_type || 'Feature'}</span></td>
+              <td class="mono">${areaM}</td>
+              <td class="mono">${ha}</td>
+              <td class="mono">${perim}</td>
+              <td class="mono" style="font-size:0.75rem;">${feat.status}</td>
+            `;
+            featuresTableBody.appendChild(tr);
+          });
+
+          const dominant = Object.keys(typesCount).sort((a,b) => typesCount[b] - typesCount[a])[0];
+          if (dominant) valGeomTypes.textContent = dominant;
+        }
+      } catch (err) {
+        console.error('Error rendering map & table:', err);
       }
     }
 
