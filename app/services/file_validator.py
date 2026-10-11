@@ -63,12 +63,16 @@ class FileValidator:
         lower_name = original_filename.lower()
         if lower_name.endswith(".kml"):
             return "kml"
+        elif lower_name.endswith(".geojson") or lower_name.endswith(".json"):
+            return "geojson"
+        elif lower_name.endswith(".gpkg"):
+            return "gpkg"
         elif lower_name.endswith(".zip"):
             return "shapefile_zip"
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file extension. Only .kml and .zip (Shapefile archive) files are accepted.",
+                detail=f"Unsupported file extension. Supported formats: .zip, .geojson, .gpkg, .kml",
             )
 
     @staticmethod
@@ -85,8 +89,9 @@ class FileValidator:
         Returns:
             Tuple of (primary_dataset_path, Optional[prj_path])
         """
-        if file_type == "kml":
-            validate_kml_content(saved_file_path)
+        if file_type in ("kml", "geojson", "gpkg"):
+            if file_type == "kml":
+                validate_kml_content(saved_file_path)
             return saved_file_path, None
 
         elif file_type == "shapefile_zip":

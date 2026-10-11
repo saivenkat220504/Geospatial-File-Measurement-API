@@ -69,7 +69,7 @@ class CRSAuditReport(BaseModel):
 
 
 class SpatialInsightsResponse(BaseModel):
-    """Comprehensive Aereo Spatial Insights response."""
+    """Comprehensive Geospatial Insights response."""
     file_id: str
     original_filename: str
     file_type: str

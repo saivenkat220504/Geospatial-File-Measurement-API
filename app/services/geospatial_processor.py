@@ -55,11 +55,41 @@ class GeospatialProcessor:
         if file_type == "kml":
             return cls.parse_kml(primary_path, file_id=file_id)
         elif file_type in ("shapefile_zip", "shapefile", "shp"):
+            # Check if primary_path is actually GPKG or GeoJSON from zip
+            ext = primary_path.suffix.lower()
+            if ext == ".gpkg" or ext in (".geojson", ".json"):
+                return cls.parse_geopandas(primary_path, file_id=file_id)
             return cls.parse_shapefile(primary_path, file_id=file_id)
+        elif file_type in ("geojson", "gpkg"):
+            return cls.parse_geopandas(primary_path, file_id=file_id)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unsupported file type for geospatial parsing: '{file_type}'",
+            )
+
+    @classmethod
+    def parse_geopandas(
+        cls,
+        dataset_path: Path,
+        file_id: Optional[str] = None,
+    ) -> GeospatialProcessingResult:
+        """
+        Reads any vector spatial format (GeoPackage, GeoJSON, Shapefile) via GeoPandas.
+        """
+        if not dataset_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Spatial dataset '{dataset_path.name}' does not exist on disk",
+            )
+        try:
+            gdf = gpd.read_file(dataset_path)
+            return cls._process_geodataframe(gdf, file_id=file_id, dataset_name=dataset_path.name)
+        except Exception as exc:
+            logger.error("Failed to parse vector dataset '%s': %s", dataset_path.name, exc, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to parse vector dataset '{dataset_path.name}': {str(exc)}",
             )
 
     @classmethod

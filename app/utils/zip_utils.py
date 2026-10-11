@@ -100,9 +100,20 @@ def validate_and_locate_shapefile(extracted_dir: Path) -> Tuple[Path, Optional[P
     ]
 
     if not shp_files:
+        # Check if archive contains GeoPackage (.gpkg) or GeoJSON (.geojson/.json) or KML (.kml)
+        gpkg_files = [p for p in extracted_dir.rglob("*.gpkg") if not p.name.startswith(".") and "__MACOSX" not in p.parts]
+        if gpkg_files:
+            return gpkg_files[0], None
+        geojson_files = [p for p in extracted_dir.rglob("*.geojson") if not p.name.startswith(".") and "__MACOSX" not in p.parts]
+        if geojson_files:
+            return geojson_files[0], None
+        kml_files = [p for p in extracted_dir.rglob("*.kml") if not p.name.startswith(".") and "__MACOSX" not in p.parts]
+        if kml_files:
+            return kml_files[0], None
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="ZIP archive does not contain a usable .shp file",
+            detail="ZIP archive does not contain a usable geospatial file (.shp, .gpkg, .geojson, or .kml)",
         )
 
     if len(shp_files) > 1:

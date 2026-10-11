@@ -336,7 +336,7 @@ def get_file_geojson(
     "/{file_id}/insights",
     response_model=SpatialInsightsResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get Aereo Spatial Insights, Geometry Quality Report, and CRS Audit",
+    summary="Get Geospatial Insights, Geometry Quality Report, and CRS Audit",
 )
 def get_file_insights(
     file_id: str,
