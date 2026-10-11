@@ -1,0 +1,49 @@
+services:
+  api:
+    build: .
+    container_name: geospatial_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=Geospatial File Measurement API
+      - APP_ENV=development
+      - DEBUG=True
+      - API_V1_STR=/api/v1
+      - DATABASE_URL=postgresql://geouser:geopassword@postgres:5432/geospatial_db
+      - STORAGE_DIR=/app/storage
+      - UPLOAD_DIR=/app/storage/uploads
+      - PROCESSED_DIR=/app/storage/processed
+      - MAX_UPLOAD_SIZE_MB=50
+    volumes:
+      - ./storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: geospatial_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: geouser
+      POSTGRES_PASSWORD: geopassword
+      POSTGRES_DB: geospatial_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geouser -d geospatial_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

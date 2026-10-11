@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geospatial Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.15) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 1rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            display: grid;
+            gap: 2rem;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        input[type="file"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            border: none;
+            padding: 0.8rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1.5rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .metric-box {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            margin: 0.5rem 0;
+        }
+
+        .metric-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .loader {
+            display: none;
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        #file-name {
+            display: block;
+            margin-top: 1rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .error-message {
+            color: #ef4444;
+            margin-top: 1rem;
+            font-weight: 500;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Geospatial</h1>
+        <p class="subtitle">Upload Shapefiles, GeoJSON, or KML to extract insights</p>
+    </header>
+
+    <div class="container">
+        <!-- Upload Card -->
+        <div class="card">
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">📁</div>
+                <h3>Drag & Drop your dataset here</h3>
+                <p class="subtitle" style="margin-top: 0.5rem; font-size: 0.9rem;">Supports .zip, .geojson, .kml</p>
+                <span id="file-name"></span>
+                <input type="file" id="file-input" accept=".zip,.geojson,.kml" />
+            </div>
+            
+            <div style="text-align: center;">
+                <button class="btn" id="upload-btn" disabled>
+                    <span>Analyze Dataset</span>
+                    <div class="loader" id="loader"></div>
+                </button>
+                <div class="error-message" id="error-message"></div>
+            </div>
+        </div>
+
+        <!-- Results Card -->
+        <div class="card" id="results-card" style="display: none;">
+            <h2 style="margin-bottom: 1.5rem; text-align: center;">Dataset Insights</h2>
+            <div class="results" id="results-grid">
+                <!-- Metrics injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const uploadArea = document.getElementById('upload-area');
+        const fileNameDisplay = document.getElementById('file-name');
+        const uploadBtn = document.getElementById('upload-btn');
+        const loader = document.getElementById('loader');
+        const btnText = uploadBtn.querySelector('span');
+        const resultsCard = document.getElementById('results-card');
+        const resultsGrid = document.getElementById('results-grid');
+        const errorMsg = document.getElementById('error-message');
+
+        const API_URL = 'http://127.0.0.1:8000/api/v1/files/';
+
+        // Drag & Drop styles
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            fileInput.files = files;
+            handleFileSelect();
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.textContent = `Selected: ${fileInput.files[0].name}`;
+                uploadBtn.disabled = false;
+                errorMsg.style.display = 'none';
+                resultsCard.style.display = 'none';
+            }
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            if (fileInput.files.length === 0) return;
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // UI State loading
+            uploadBtn.disabled = true;
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            errorMsg.style.display = 'none';
+            resultsCard.style.display = 'none';
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to upload dataset');
+                }
+
+                // If upload is successful, we usually get a file_id. 
+                // Let's fetch insights/summary immediately.
+                const fileId = data.id || data.file_id;
+                
+                if (fileId) {
+                    const summaryResponse = await fetch(`${API_URL}${fileId}/summary`);
+                    const summaryData = await summaryResponse.json();
+                    displayResults(summaryData);
+                } else {
+                    // Fallback if the upload endpoint returns stats directly
+                    displayResults(data);
+                }
+
+            } catch (error) {
+                console.error(error);
+                errorMsg.textContent = error.message;
+                errorMsg.style.display = 'block';
+            } finally {
+                // UI State restore
+                uploadBtn.disabled = false;
+                btnText.style.display = 'block';
+                loader.style.display = 'none';
+            }
+        });
+
+        function displayResults(data) {
+            resultsGrid.innerHTML = '';
+            resultsCard.style.display = 'block';
+            resultsGrid.style.display = 'grid';
+            
+            // Extract typical response data (adapting to standard spatial responses)
+            const metrics = [
+                { label: 'Total Features', value: data.total_features_count || data.features_count || 0 },
+                { label: 'Total Area (m²)', value: data.total_area_m2 ? data.total_area_m2.toLocaleString(undefined, {maximumFractionDigits: 2}) : 'N/A' },
+                { label: 'Total Length (m)', value: data.total_line_length_m ? data.total_line_length_m.toLocaleString(undefined, {maximumFractionDigits: 2}) : 'N/A' }
+            ];
+
+            metrics.forEach(m => {
+                const box = document.createElement('div');
+                box.className = 'metric-box';
+                box.innerHTML = `
+                    <div class="metric-label">${m.label}</div>
+                    <div class="metric-value">${m.value}</div>
+                `;
+                resultsGrid.appendChild(box);
+            });
+            
+            // Scroll to results
+            resultsCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    </script>
+</body>
+</html>
