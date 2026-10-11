@@ -54,6 +54,11 @@ The **Geospatial File Measurement API** allows users to upload geospatial files 
 
 ## Project Architecture
 
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Geospatial File Measurement API Architecture Diagram" width="100%">
+</p>
+
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                        CLIENT / BROWSER                       │
